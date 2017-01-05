@@ -14,7 +14,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sysutils"
+	
+	"github.com/ecofast/sysutils"
 )
 
 type IniFile struct {
