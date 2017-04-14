@@ -1,4 +1,4 @@
-// Copyright 2017 ecofast(无尽愿). All rights reserved.
+// Copyright 2017 ecofast. All rights reserved.
 // Use of this source code is governed by a BSD-style license.
 
 // Package iniutils was translated from TMemIniFile in Delphi(2007) RTL,
@@ -14,14 +14,16 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	
-	"github.com/ecofast/sysutils"
+
+	. "github.com/ecofast/sysutils"
 )
 
 type IniFile struct {
 	fileName      string
 	caseSensitive bool
 	sections      map[string][]string
+	sectionNames  []string
+	modified      bool
 }
 
 func NewIniFile(filename string, casesensitive bool) *IniFile {
@@ -29,6 +31,7 @@ func NewIniFile(filename string, casesensitive bool) *IniFile {
 		fileName:      filename,
 		caseSensitive: casesensitive,
 		sections:      make(map[string][]string),
+		modified:      false,
 	}
 	ini.loadValues()
 	return ini
@@ -44,14 +47,25 @@ func (ini *IniFile) CaseSensitive() bool {
 
 func (ini *IniFile) String() string {
 	var buf bytes.Buffer
-	for sec, lst := range ini.sections {
-		buf.WriteString(fmt.Sprintf("[%s]\n", sec))
-		for _, s := range lst {
-			buf.WriteString(fmt.Sprintf("%s\n", s))
+	for _, sec := range ini.sectionNames {
+		if lst, ok := ini.sections[sec]; ok {
+			buf.WriteString(fmt.Sprintf("[%s]", sec) + LineEndings)
+			for _, s := range lst {
+				buf.WriteString(fmt.Sprintf("%s", s) + LineEndings)
+			}
+			buf.WriteString(LineEndings)
 		}
-		buf.WriteString("\n")
 	}
-	return buf.String()
+	/*
+		for sec, lst := range ini.sections {
+			buf.WriteString(fmt.Sprintf("[%s]", sec) + LineEndings)
+			for _, s := range lst {
+				buf.WriteString(fmt.Sprintf("%s", s) + LineEndings)
+			}
+			buf.WriteString(LineEndings)
+		}
+	*/
+	return strings.TrimRight(buf.String(), LineEndings)
 }
 
 func (ini *IniFile) getRealValue(s string) string {
@@ -62,7 +76,7 @@ func (ini *IniFile) getRealValue(s string) string {
 }
 
 func (ini *IniFile) loadValues() {
-	if !sysutils.FileExists(ini.fileName) {
+	if !FileExists(ini.fileName) {
 		return
 	}
 
@@ -82,6 +96,7 @@ func (ini *IniFile) loadValues() {
 			if s[0] == '[' && s[len(s)-1] == ']' {
 				s = s[1 : len(s)-1]
 				section = s
+				ini.sectionNames = append(ini.sectionNames, s)
 			} else {
 				if section != "" {
 					if pos := strings.Index(s, "="); pos > 0 {
@@ -102,23 +117,17 @@ func (ini *IniFile) loadValues() {
 
 func (ini *IniFile) flush() {
 	file, err := os.Create(ini.fileName)
-	sysutils.CheckError(err)
+	if err != nil {
+		return
+	}
 	defer file.Close()
 
 	fw := bufio.NewWriter(file)
-	for sec, lst := range ini.sections {
-		_, err = fw.WriteString(fmt.Sprintf("[%s]\n", sec))
-		sysutils.CheckError(err)
-
-		for _, s := range lst {
-			_, err = fw.WriteString(fmt.Sprintf("%s\n", s))
-			sysutils.CheckError(err)
-		}
-
-		_, err = fw.WriteString("\n")
-		sysutils.CheckError(err)
+	_, err = fw.WriteString(ini.String())
+	if err != nil {
+		return
 	}
-	fw.Flush()
+	ini.modified = (fw.Flush() != nil)
 }
 
 func (ini *IniFile) SectionExists(section string) bool {
@@ -139,7 +148,23 @@ func (ini *IniFile) ReadSections() []string {
 
 func (ini *IniFile) EraseSection(section string) {
 	sec := ini.getRealValue(section)
-	delete(ini.sections, sec)
+	if _, ok := ini.sections[sec]; ok {
+		delete(ini.sections, sec)
+		for i, s := range ini.sectionNames {
+			if s == sec {
+				var ss []string
+				for j := 0; j < i; j++ {
+					ss = append(ss, ini.sectionNames[j])
+				}
+				for j := i + 1; j < len(ini.sectionNames); j++ {
+					ss = append(ss, ini.sectionNames[j])
+				}
+				ini.sectionNames = ss
+				ini.modified = true
+				return
+			}
+		}
+	}
 }
 
 func (ini *IniFile) ReadSectionIdents(section string) []string {
@@ -182,6 +207,7 @@ func (ini *IniFile) DeleteIdent(section, ident string) {
 						ss = append(ss, sl[j])
 					}
 					ini.sections[sec] = ss
+					ini.modified = true
 					return
 				}
 			}
@@ -236,13 +262,17 @@ func (ini *IniFile) WriteString(section, ident, value string) {
 						ss = append(ss, sl[j])
 					}
 					ini.sections[sec] = ss
+					ini.modified = true
 					return
 				}
 			}
 		}
 		ini.sections[sec] = append(sl, ident+"="+value)
+		ini.modified = true
 	} else {
+		ini.sectionNames = append(ini.sectionNames, sec)
 		ini.sections[sec] = []string{ident + "=" + value}
+		ini.modified = true
 	}
 }
 
@@ -260,12 +290,12 @@ func (ini *IniFile) WriteInt(section, ident string, value int) {
 }
 
 func (ini *IniFile) ReadBool(section, ident string, defaultValue bool) bool {
-	s := ini.ReadString(section, ident, sysutils.BoolToStr(defaultValue))
-	return sysutils.StrToBool(s)
+	s := ini.ReadString(section, ident, BoolToStr(defaultValue))
+	return StrToBool(s)
 }
 
 func (ini *IniFile) WriteBool(section, ident string, value bool) {
-	ini.WriteString(section, ident, sysutils.BoolToStr(value))
+	ini.WriteString(section, ident, BoolToStr(value))
 }
 
 func (ini *IniFile) ReadFloat(section, ident string, defaultValue float64) float64 {
@@ -279,15 +309,22 @@ func (ini *IniFile) ReadFloat(section, ident string, defaultValue float64) float
 }
 
 func (ini *IniFile) WriteFloat(section, ident string, value float64) {
-	ini.WriteString(section, ident, sysutils.FloatToStr(value))
+	ini.WriteString(section, ident, FloatToStr(value))
 }
 
 func (ini *IniFile) Close() {
-	ini.flush()
+	if ini.modified {
+		ini.flush()
+	}
+	ini.clear()
 }
 
-func (ini *IniFile) Clear() {
+func (ini *IniFile) clear() {
+	ini.fileName = ""
+	ini.caseSensitive = false
 	ini.sections = make(map[string][]string)
+	ini.sectionNames = nil
+	ini.modified = false
 }
 
 func IniReadString(fileName, section, ident, defaultValue string) string {
