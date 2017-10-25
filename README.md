@@ -12,4 +12,4 @@ or:</br>
 fmt.Println(iniutils.IniReadString("cfg.ini", "test", "value", "inidemo"))</br></br>
 
 Note:</br>
-This repo is NO longer maintained, you can use package [RTL](https://github.com/ecofast/rtl) instead.
+This repo is NO longer maintained, you can use [RTL](https://github.com/ecofast/rtl) instead.
