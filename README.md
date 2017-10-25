@@ -9,4 +9,7 @@ fmt.Println(inifile)</br>
 fmt.Printf("info.name=%s\n", inifile.ReadString("info", "name", "ecofast"))</br>
 
 or:</br>
-fmt.Println(iniutils.IniReadString("cfg.ini", "test", "value", "inidemo"))</br>
+fmt.Println(iniutils.IniReadString("cfg.ini", "test", "value", "inidemo"))</br></br>
+
+Note:</br>
+This repo is NO longer maintained, you can use package [RTL](https://github.com/ecofast/rtl) instead.
